@@ -31,9 +31,9 @@ Ripple Network overcomes the limitations of existing embedding-based and path-ba
 
 ### Required packages
 The code has been tested running under Python 3.6, with the following packages installed (along with their dependencies):
-- pytorch >= 1.0
-- numpy >= 1.14.5
-- sklearn >= 0.19.1
+- pytorch >= 1.0 或者 torch==1.12.1+cu116
+- numpy==1.21.5
+- scikit_learn==1.2.2
 
 
 ### Running the code
