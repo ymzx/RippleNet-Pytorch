@@ -5,6 +5,8 @@ import torch.nn.functional as F
 
 from sklearn.metrics import roc_auc_score
 
+from SEAttion import SEAttention
+
 
 class RippleNet(nn.Module):
     def __init__(self, args, n_entity, n_relation):
@@ -14,6 +16,8 @@ class RippleNet(nn.Module):
 
         self.entity_emb = nn.Embedding(self.n_entity, self.dim)
         self.relation_emb = nn.Embedding(self.n_relation, self.dim * self.dim)
+        self.n_memory = args.n_memory
+        self.se = SEAttention(channel=self.n_memory, reduction=int(self.n_memory/2))
         self.transform_matrix = nn.Linear(self.dim, self.dim, bias=False)
         self.criterion = nn.BCELoss()
 
@@ -79,6 +83,7 @@ class RippleNet(nn.Module):
             hRt = torch.squeeze(
                 torch.matmul(torch.matmul(h_expanded, r_emb_list[hop]), t_expanded)
             )
+            # hRt.shape --> torch.Size([512, 16])
             kge_loss += torch.sigmoid(hRt).mean()
         kge_loss = -self.kge_weight * kge_loss
 
@@ -99,7 +104,8 @@ class RippleNet(nn.Module):
             h_expanded = torch.unsqueeze(h_emb_list[hop], dim=3)
 
             # [batch_size, n_memory, dim]
-            Rh = torch.squeeze(torch.matmul(r_emb_list[hop], h_expanded))
+            # torch.Size([512, 16, 4, 4]) * torch.Size([512, 16, 4, 1]) --> torch.Size([512, 16, 4, 1])
+            Rh = torch.squeeze(torch.matmul(r_emb_list[hop], h_expanded))  # torch.Size([512, 16, 4])
 
             # [batch_size, dim, 1]
             v = torch.unsqueeze(item_embeddings, dim=2)
@@ -113,7 +119,11 @@ class RippleNet(nn.Module):
             # [batch_size, n_memory, 1]
             probs_expanded = torch.unsqueeze(probs_normalized, dim=2)
 
+            # add SE-Attion, 原论文无该模块，属于新增模块
+            t_emb_list[hop] = torch.squeeze(self.se(torch.unsqueeze(t_emb_list[hop], dim=3)))
+
             # [batch_size, dim]
+            # torch.Size([512, 16, 4]) * torch.Size([512, 16, 1]) --> torch.Size([512, 16, 4])
             o = (t_emb_list[hop] * probs_expanded).sum(dim=1)
 
             item_embeddings = self._update_item_embedding(item_embeddings, o)
